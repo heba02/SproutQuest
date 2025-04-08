@@ -6,6 +6,8 @@ class LoginScreen extends StatelessWidget {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  LoginScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,13 +82,13 @@ class LoginScreen extends StatelessWidget {
                     ),
                   );
                 },
-                child: Text('Login'),
                 style: ButtonStyle(
-                  padding: MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
-                  backgroundColor: MaterialStateProperty.all(Colors.green.shade700), // Correct way to set background color
-                  foregroundColor: MaterialStateProperty.all(Colors.white),  // Set text color to white
-                  textStyle: MaterialStateProperty.all(TextStyle(fontSize: 18)),
+                  padding: WidgetStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
+                  backgroundColor: WidgetStateProperty.all(Colors.green.shade700), // Correct way to set background color
+                  foregroundColor: WidgetStateProperty.all(Colors.white),  // Set text color to white
+                  textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
                 ),
+                child: Text('Login'),
               ),
 
               SizedBox(height: 20),

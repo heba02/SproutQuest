@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'forgot_password_screen.dart';
-import 'home_screen.dart';
 import 'settings_screen.dart';
 import 'leaderboard_screen.dart';
 
 class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,22 +32,22 @@ class HomeScreen extends StatelessWidget {
                 onPressed: () {
                   // Button 1 action
                 },
-                child: Text(
-                  'Recycle at least 20 cans at your nearest recyling center',
-                  textAlign: TextAlign.center,
-                ),
                 style: ButtonStyle(
-                  padding: MaterialStateProperty.all(
+                  padding: WidgetStateProperty.all(
                       EdgeInsets.symmetric(vertical: 16, horizontal: 24)),
                   backgroundColor:
-                  MaterialStateProperty.all(Colors.green.shade700),
-                  foregroundColor: MaterialStateProperty.all(Colors.white),
-                  shape: MaterialStateProperty.all(
+                  WidgetStateProperty.all(Colors.green.shade700),
+                  foregroundColor: WidgetStateProperty.all(Colors.white),
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  textStyle: MaterialStateProperty.all(TextStyle(fontSize: 18)),
+                  textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
+                ),
+                child: Text(
+                  'Recycle at least 20 cans at your nearest recyling center',
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
@@ -59,22 +59,22 @@ class HomeScreen extends StatelessWidget {
                 onPressed: () {
                   // Button 2 action
                 },
-                child: Text(
-                  'Collect 10 different sorts of leaves in your nearest park/forest',
-                  textAlign: TextAlign.center,
-                ),
                 style: ButtonStyle(
-                  padding: MaterialStateProperty.all(
+                  padding: WidgetStateProperty.all(
                       EdgeInsets.symmetric(vertical: 16, horizontal: 24)),
                   backgroundColor:
-                  MaterialStateProperty.all(Colors.green.shade700),
-                  foregroundColor: MaterialStateProperty.all(Colors.white),
-                  shape: MaterialStateProperty.all(
+                  WidgetStateProperty.all(Colors.green.shade700),
+                  foregroundColor: WidgetStateProperty.all(Colors.white),
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  textStyle: MaterialStateProperty.all(TextStyle(fontSize: 18)),
+                  textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
+                ),
+                child: Text(
+                  'Collect 10 different sorts of leaves in your nearest park/forest',
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
@@ -86,22 +86,22 @@ class HomeScreen extends StatelessWidget {
                 onPressed: () {
                   // Button 3 action
                 },
-                child: Text(
-                  'Cook a vegan dinner using at least 3 vegetables that are in season',
-                  textAlign: TextAlign.center,
-                ),
                 style: ButtonStyle(
-                  padding: MaterialStateProperty.all(
+                  padding: WidgetStateProperty.all(
                       EdgeInsets.symmetric(vertical: 16, horizontal: 24)),
                   backgroundColor:
-                  MaterialStateProperty.all(Colors.green.shade700),
-                  foregroundColor: MaterialStateProperty.all(Colors.white),
-                  shape: MaterialStateProperty.all(
+                  WidgetStateProperty.all(Colors.green.shade700),
+                  foregroundColor: WidgetStateProperty.all(Colors.white),
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  textStyle: MaterialStateProperty.all(TextStyle(fontSize: 18)),
+                  textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
+                ),
+                child: Text(
+                  'Cook a vegan dinner using at least 3 vegetables that are in season',
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),

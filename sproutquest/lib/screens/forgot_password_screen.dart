@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 class ForgotPasswordScreen extends StatelessWidget {
   final TextEditingController _emailController = TextEditingController();
 
+  ForgotPasswordScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,13 +45,13 @@ class ForgotPasswordScreen extends StatelessWidget {
                   // Handle reset password logic here
                   print("Sending password reset email...");
                 },
-                child: Text('Send reset link'),
                 style: ButtonStyle(
-                  padding: MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
-                  backgroundColor: MaterialStateProperty.all(Colors.green.shade700),  // Correct way to set background color
-                  foregroundColor: MaterialStateProperty.all(Colors.white),  // Set text color to white
-                  textStyle: MaterialStateProperty.all(TextStyle(fontSize: 18)),
+                  padding: WidgetStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
+                  backgroundColor: WidgetStateProperty.all(Colors.green.shade700),  // Correct way to set background color
+                  foregroundColor: WidgetStateProperty.all(Colors.white),  // Set text color to white
+                  textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
                 ),
+                child: Text('Send reset link'),
               ),
 
               SizedBox(height: 20),

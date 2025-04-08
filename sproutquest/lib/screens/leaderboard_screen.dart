@@ -9,6 +9,8 @@ class LeaderboardScreen extends StatelessWidget {
     {"rank": 5, "name": "Player5", "score": 1250},
   ];
 
+  LeaderboardScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
