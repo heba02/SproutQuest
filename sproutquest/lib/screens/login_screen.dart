@@ -1,10 +1,45 @@
 import 'package:flutter/material.dart';
 import 'forgot_password_screen.dart';
 import 'home_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  Future<void> _saveInput() async {
+    String email = _emailController.text;
+    String password = _passwordController.text; 
+    try {
+      UserCredential userCredential = await FirebaseAuth.instance
+        .signInWithEmailAndPassword(email: email, password: password);
+      
+      print("Logged in as: ${userCredential.user?.email}");
+      Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => HomeScreen()
+                    ),
+                  );
+    } catch(e) {
+      print('login failed');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Login failed. Please check your credentials.')),
+      );
+    }
+    print("Email: $email, Password: $password");
+  }
+
+  @override
+  void dispose () {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,24 +104,14 @@ class LoginScreen extends StatelessWidget {
               // -------------------------------------------------------
               // Login button
               ElevatedButton(
-                onPressed: () {
-                  // Handle login action
-                  print("Logging in...");
-
-                  // Go to home screen
-                  Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => HomeScreen()
-                    ),
-                  );
-                },
-                child: Text('Login'),
+                onPressed: _saveInput,
                 style: ButtonStyle(
-                  padding: MaterialStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
-                  backgroundColor: MaterialStateProperty.all(Colors.green.shade700), // Correct way to set background color
-                  foregroundColor: MaterialStateProperty.all(Colors.white),  // Set text color to white
-                  textStyle: MaterialStateProperty.all(TextStyle(fontSize: 18)),
+                  padding: WidgetStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
+                  backgroundColor: WidgetStateProperty.all(Colors.green.shade700), // Correct way to set background color
+                  foregroundColor: WidgetStateProperty.all(Colors.white),  // Set text color to white
+                  textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
                 ),
+                child: Text('Login')
               ),
 
               SizedBox(height: 20),

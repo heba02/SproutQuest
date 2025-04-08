@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sproutquest/screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -61,7 +62,8 @@ class SettingsScreen extends StatelessWidget {
             leading: Icon(Icons.waving_hand, color: Colors.green.shade700),
             title: Text('Log out', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             subtitle: Text('Log out from the app'),
-            onTap: () {
+            onTap: () async {
+              await FirebaseAuth.instance.signOut();
               Navigator.pushAndRemoveUntil(
                 context, 
                 MaterialPageRoute(builder: (context) => LoginScreen()),
