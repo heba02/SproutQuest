@@ -3,6 +3,10 @@ import 'forgot_password_screen.dart';
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sproutquest/screens/adult_main_screen.dart';
+
+
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -21,17 +25,40 @@ class _LoginScreenState extends State<LoginScreen> {
           .signInWithEmailAndPassword(email: email, password: password);
 
       print("Logged in as: ${userCredential.user?.email}");
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen()),
-      );
+
+      final user = FirebaseAuth.instance.currentUser;
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(user!.uid);
+      final snapshot = await userDoc.get();
+
+      if (snapshot.exists) {
+        final role = snapshot.data()!['role'];
+
+        if (role == 'child') {
+          Navigator.pushReplacement(
+            context, 
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+            );
+        } else if (role == 'adult') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => AdultMainScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Role is undefined')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('User data not found')),
+        );
+      }
     } catch (e) {
-      print('login failed');
+      print ('login failed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Login failed. Please check your credentials.')),
       );
     }
-    print("Email: $email, Password: $password");
   }
 
   @override
