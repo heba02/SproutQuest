@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'forgot_password_screen.dart';
+import 'sign_up_screen.dart';
 import 'home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sproutquest/screens/adult_main_screen.dart';
+
+
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -14,28 +19,50 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _saveInput() async {
     String email = _emailController.text;
-    String password = _passwordController.text; 
+    String password = _passwordController.text;
     try {
       UserCredential userCredential = await FirebaseAuth.instance
-        .signInWithEmailAndPassword(email: email, password: password);
-      
+          .signInWithEmailAndPassword(email: email, password: password);
+
       print("Logged in as: ${userCredential.user?.email}");
-      Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => HomeScreen()
-                    ),
-                  );
-    } catch(e) {
-      print('login failed');
+
+      final user = FirebaseAuth.instance.currentUser;
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(user!.uid);
+      final snapshot = await userDoc.get();
+
+      if (snapshot.exists) {
+        final role = snapshot.data()!['role'];
+
+        if (role == 'child') {
+          Navigator.pushReplacement(
+            context, 
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+            );
+        } else if (role == 'adult') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => AdultMainScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Role is undefined')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('User data not found')),
+        );
+      }
+    } catch (e) {
+      print ('login failed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Login failed. Please check your credentials.')),
       );
     }
-    print("Email: $email, Password: $password");
   }
 
   @override
-  void dispose () {
+  void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -106,15 +133,41 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: _saveInput,
                 style: ButtonStyle(
-                  padding: WidgetStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
-                  backgroundColor: WidgetStateProperty.all(Colors.green.shade700), // Correct way to set background color
-                  foregroundColor: WidgetStateProperty.all(Colors.white),  // Set text color to white
+                  padding: WidgetStateProperty.all(
+                    EdgeInsets.symmetric(vertical: 16, horizontal: 50),
+                  ),
+                  backgroundColor: WidgetStateProperty.all(
+                    Colors.green.shade700,
+                  ), // Correct way to set background color
+                  foregroundColor: WidgetStateProperty.all(
+                    Colors.white,
+                  ), // Set text color to white
                   textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
                 ),
-                child: Text('Login')
+                child: Text('Login'),
               ),
 
               SizedBox(height: 20),
+
+              // ---------------------------------------------------------
+              // Sign-up button
+
+              TextButton(
+
+                onPressed: () {
+                  // Navigate to forgot password screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SignUpScreen(),
+                    ),
+                  );
+                },
+                child: Text(
+                  "Don't have an account? Sign up",
+                  style: TextStyle(color: Colors.green.shade700),
+                ),
+              ),
 
               // ---------------------------------------------------------
               // Forgot password link

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sproutquest/screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
+import 'manage_linked_adults_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -57,6 +58,21 @@ class SettingsScreen extends StatelessWidget {
             title: Text('Appearance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             subtitle: Text('Customize the app’s look'),
             onTap: () {},
+          ),
+          Divider(),
+
+          ListTile(
+            leading: Icon(Icons.family_restroom, color: Colors.green.shade700),
+            title: Text('Manage Linked Adults', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            subtitle: Text('Add or view your connected adults'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ManageLinkedAdultsScreen(),
+                ),
+              );
+            },
           ),
           Divider(),
 
