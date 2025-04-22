@@ -41,7 +41,7 @@ class LeaderboardScreen extends StatelessWidget {
               child: StreamBuilder<QuerySnapshot>(
                 stream:
                     FirebaseFirestore.instance
-                        .collection('leaderboard')
+                        .collection('users')
                         .orderBy('score', descending: true)
                         .limit(6)
                         .snapshots(),
@@ -74,7 +74,7 @@ class LeaderboardScreen extends StatelessWidget {
                           ),
                         ),
                         title: Text(
-                          player['name'] ?? 'Unknown',
+                          player['email'] ?? 'Unknown',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
