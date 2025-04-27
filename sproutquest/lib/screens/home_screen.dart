@@ -9,6 +9,9 @@ import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:image/image.dart' as img;
 import 'dart:convert';
+import 'battery_screen.dart';
+import 'trash_screen.dart';
+import 'pant_screen.dart';
 
 ButtonStyle buttonStyle() {
   return ButtonStyle(
@@ -78,8 +81,14 @@ Future<String> compressAndSaveMission(
     // Decode, resize, and compress image
     final originalImage = img.decodeImage(bytes);
     if (originalImage == null) throw Exception('Could not decode image');
-    final resized = img.copyResize(originalImage, width: 300); // Resize width to 300px
-    final compressed = img.encodeJpg(resized, quality: 70); // Compress to 70% quality
+    final resized = img.copyResize(
+      originalImage,
+      width: 300,
+    ); // Resize width to 300px
+    final compressed = img.encodeJpg(
+      resized,
+      quality: 70,
+    ); // Compress to 70% quality
 
     final base64Image = base64Encode(compressed); // Convert to base64
 
@@ -112,13 +121,10 @@ Future<String> compressAndSaveMission(
   }
 }
 
-
-
-Future<void> _submitMissionWithPhoto(
+Future<void> submitMissionWithPhoto(
   String missionTitle,
   BuildContext context,
 ) async {
-  
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
 
@@ -126,24 +132,21 @@ Future<void> _submitMissionWithPhoto(
   final missionsRef = firestore.collection('missions');
 
   // Check for duplicate pending/approved mission
-  final existingMissions = await missionsRef
-      .where('childId', isEqualTo: user.uid)
-      .where('missionTitle', isEqualTo: missionTitle)
-      .where('status', whereIn: ['pending', 'approved'])
-      .get();
+  final existingMissions =
+      await missionsRef
+          .where('childId', isEqualTo: user.uid)
+          .where('missionTitle', isEqualTo: missionTitle)
+          .where('status', whereIn: ['pending', 'approved'])
+          .get();
 
   if (existingMissions.docs.isNotEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Du har redan gjort denna utmaning!✋',
-        ),
-      ),
+      SnackBar(content: Text('Du har redan gjort denna utmaning!✋')),
     );
     return;
   }
 
-    // 2. Pick image
+  // 2. Pick image
   final picker = ImagePicker();
   final XFile? pickedFile = await picker.pickImage(source: ImageSource.camera);
   if (pickedFile == null) {
@@ -153,21 +156,28 @@ Future<void> _submitMissionWithPhoto(
     return;
   }
 
-
   final userDoc = await firestore.collection('users').doc(user.uid).get();
   final List<dynamic> linkedAdultsRaw = userDoc.data()?['linkedAdults'] ?? [];
 
   if (linkedAdultsRaw.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Inga länkade vuxna hittades. Vänligen länka en vuxen först.')),
+      SnackBar(
+        content: Text(
+          'Inga länkade vuxna hittades. Vänligen länka en vuxen först.',
+        ),
+      ),
     );
     return;
   }
 
-  List<Map<String, dynamic>> linkedAdults = linkedAdultsRaw
-      .whereType<Map<String, dynamic>>()
-      .where((adult) => adult['email'] != null && adult['email'].toString().isNotEmpty)
-      .toList();
+  List<Map<String, dynamic>> linkedAdults =
+      linkedAdultsRaw
+          .whereType<Map<String, dynamic>>()
+          .where(
+            (adult) =>
+                adult['email'] != null && adult['email'].toString().isNotEmpty,
+          )
+          .toList();
 
   List<Map<String, dynamic>> selectedAdults = [];
 
@@ -181,22 +191,23 @@ Future<void> _submitMissionWithPhoto(
             return SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: linkedAdults.map((adult) {
-                  final isSelected = selectedAdults.contains(adult);
-                  return CheckboxListTile(
-                    title: Text(adult['name'] ?? adult['email']),
-                    value: isSelected,
-                    onChanged: (bool? value) {
-                      setState(() {
-                        if (value == true) {
-                          selectedAdults.add(adult);
-                        } else {
-                          selectedAdults.remove(adult);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
+                children:
+                    linkedAdults.map((adult) {
+                      final isSelected = selectedAdults.contains(adult);
+                      return CheckboxListTile(
+                        title: Text(adult['name'] ?? adult['email']),
+                        value: isSelected,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              selectedAdults.add(adult);
+                            } else {
+                              selectedAdults.remove(adult);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
               ),
             );
           },
@@ -216,29 +227,39 @@ Future<void> _submitMissionWithPhoto(
   );
 
   if (selectedAdults.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Uppdraget skickades ej.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Uppdraget skickades ej.')));
     return;
   }
   // Upload image and save mission details
-  final base64Image = await compressAndSaveMission(pickedFile, missionTitle, selectedAdults);
-
+  final base64Image = await compressAndSaveMission(
+    pickedFile,
+    missionTitle,
+    selectedAdults,
+  );
 
   // Ensure child is linked to each selected adult
   for (final adult in selectedAdults) {
     final adultEmail = adult['email'];
 
     final adultQuery =
-        await firestore.collection('users').where('email', isEqualTo: adultEmail).limit(1).get();
+        await firestore
+            .collection('users')
+            .where('email', isEqualTo: adultEmail)
+            .limit(1)
+            .get();
 
     if (adultQuery.docs.isNotEmpty) {
       final adultDoc = adultQuery.docs.first;
       final adultDocRef = adultDoc.reference;
 
-      final List<dynamic> linkedChildren = adultDoc.data()['linkedChildren'] ?? [];
+      final List<dynamic> linkedChildren =
+          adultDoc.data()['linkedChildren'] ?? [];
 
-      final alreadyLinked = linkedChildren.any((child) => child['childEmail'] == user.email);
+      final alreadyLinked = linkedChildren.any(
+        (child) => child['childEmail'] == user.email,
+      );
 
       if (!alreadyLinked) {
         await adultDocRef.update({
@@ -250,11 +271,26 @@ Future<void> _submitMissionWithPhoto(
     }
   }
 
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('Utmaningen skickades med fotobevis! 🌱')));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Utmaningen skickades med fotobevis! 🌱')),
+  );
 }
 
+Future<bool> isMissionApproved(String missionTitle, String userId) async {
+  final firestore = FirebaseFirestore.instance;
+
+  // Fetch the mission document for the specific mission
+  final missionSnapshot = await firestore
+      .collection('missions')
+      .where('childId', isEqualTo: userId)
+      .where('missionTitle', isEqualTo: missionTitle)
+      .where('status', isEqualTo: 'approved')
+      .get();
+
+  print("Fetched ${missionSnapshot.docs.length} missions for $missionTitle with status 'approved'");
+
+  return missionSnapshot.docs.isNotEmpty;
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -265,16 +301,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _userScore = 0;
+  bool isBatteryApproved = false;
+  bool isPantApproved = false;
+  bool isTrashApproved = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserScore();
+    _fetchUserScore(); // Ensure score is fetched first
   }
 
+  // Fetch the user score
   Future<void> _fetchUserScore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      final userId = user.uid; // Get the user ID
       final doc =
           await FirebaseFirestore.instance
               .collection('users')
@@ -285,8 +326,29 @@ class _HomeScreenState extends State<HomeScreen> {
           _userScore = (doc.data()?['score'] ?? 0) as int;
         });
       }
+      
+      // Fetch today’s missions
+    final todayMissions = await fetchTodayMissions();
+
+    // Check approval status for each mission (battery, pant, trash)
+    for (String missionTitle in todayMissions.keys) {
+      final missionApproved = await isMissionApproved(todayMissions[missionTitle]!, userId);
+      print('$missionTitle Approved: $missionApproved');
+
+      setState(() {
+        if (missionTitle == 'battery') {
+          isBatteryApproved = missionApproved;
+        } else if (missionTitle == 'pant') {
+          isPantApproved = missionApproved;
+        } else if (missionTitle == 'trash') {
+          isTrashApproved = missionApproved;
+        }
+      });
+    }
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -307,7 +369,9 @@ class _HomeScreenState extends State<HomeScreen> {
               } else if (snapshot.hasError) {
                 return Center(child: Text('Gick ej att ladda utmaningar'));
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(child: Text('Det finns inga tillgängliga utmaningar idag'));
+                return Center(
+                  child: Text('Det finns inga tillgängliga utmaningar idag'),
+                );
               } else {
                 final missions = snapshot.data!;
 
@@ -361,7 +425,103 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.green.shade700,
                         ),
                       ),
-                      SizedBox(height: 40),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => TrashScreen(
+                                          mission: missions['trash']!,
+                                        ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
+                              ),
+                              child: Icon(
+                                isTrashApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .recycling, // Show checkmark if approved
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => PantScreen(
+                                          mission: missions['pant']!,
+                                        ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
+                              ),
+                              child: Icon(
+                                isPantApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .energy_savings_leaf_rounded, // Show checkmark if approved
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => BatteryScreen(
+                                          mission: missions['battery']!,
+                                        ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
+                              ),
+                              child: Icon(
+                                isBatteryApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .battery_charging_full, // Show checkmark if approved
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      /*  SizedBox(height: 40),
                       ElevatedButton(
                         onPressed: () {
                           _submitMissionWithPhoto(
@@ -402,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           missions['trash']!,
                           textAlign: TextAlign.center,
                         ),
-                      ),
+                      ),*/
                     ],
                   ),
                 );
