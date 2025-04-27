@@ -109,10 +109,10 @@ class PendingMissionsScreen extends StatelessWidget {
           return Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Something went wrong!'));
+          return Center(child: Text('Något gick fel!'));
         }
         if (!snapshot.hasData || snapshot.data == null) {
-          return Center(child: Text('No user data found.'));
+          return Center(child: Text('Ingen användardata hittades.'));
         }
 
         final currentEmail = snapshot.data!['email'] as String;
@@ -129,7 +129,7 @@ class PendingMissionsScreen extends StatelessWidget {
               return Center(child: CircularProgressIndicator());
             }
             if (!missionSnapshot.hasData || missionSnapshot.data!.docs.isEmpty) {
-              return Center(child: Text('No missions to approve!'));
+              return Center(child: Text('Det finns inga uppgifter att godkänna!'));
             }
 
             final missions = missionSnapshot.data!.docs;

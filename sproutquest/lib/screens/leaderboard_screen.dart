@@ -10,7 +10,7 @@ class LeaderboardScreen extends StatelessWidget {
       backgroundColor: Color(0xFFDAD7CD), // Matching background color
       appBar: AppBar(
         title: Text(
-          'Leaderboard',
+          'Topplista',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -29,7 +29,7 @@ class LeaderboardScreen extends StatelessWidget {
         child: Column(
           children: [
             Text(
-              "Top Players",
+              "Toppspelare",
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -53,7 +53,7 @@ class LeaderboardScreen extends StatelessWidget {
                   final leaderboard = snapshot.data!.docs;
 
                   if (leaderboard.isEmpty) {
-                    return const Center(child: Text("No players yet"));
+                    return const Center(child: Text("Inga spelare än..."));
                   }
 
                   return ListView.separated(
@@ -82,7 +82,7 @@ class LeaderboardScreen extends StatelessWidget {
                           ),
                         ),
                         trailing: Text(
-                          "${player['score'] ?? 0} pts",
+                          "${player['score'] ?? 0} p",
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,

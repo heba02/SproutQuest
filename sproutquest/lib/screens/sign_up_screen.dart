@@ -22,7 +22,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Passwords do not match')),
+        SnackBar(content: Text('Lösenorden matchar ej!')),
       );
       return;
     }
@@ -40,12 +40,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'score': _selectedRole == 'child' ? 0 : null,
       });
 
-      print("Account created: ${userCredential.user?.email}");
+      print("Konto skapades: ${userCredential.user?.email}");
       Navigator.pushReplacementNamed(context, '/');
     } catch (e) {
-      print('Sign up failed: $e');
+      print('Registreringen misslyckades: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign up failed. Please try again.')),
+        SnackBar(content: Text('Registreringen misslyckades. Vänligen försök igen.')),
       );
     }
   }
@@ -63,7 +63,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return Scaffold(
       backgroundColor: Color(0xFFDAD7CD),
       appBar: AppBar(
-        title: Text("Create Account"),
+        title: Text("Skapa konto"),
         backgroundColor: Colors.green.shade700,
       ),
       body: Padding(
@@ -72,7 +72,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Sign Up',
+              'Registrera dig',
               style: TextStyle(
                 fontSize: 35,
                 fontWeight: FontWeight.bold,
@@ -83,7 +83,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             TextFormField(
               controller: _emailController,
               decoration: InputDecoration(
-                labelText: 'Email',
+                labelText: 'E-post',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.email),
               ),
@@ -94,7 +94,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               controller: _passwordController,
               obscureText: true,
               decoration: InputDecoration(
-                labelText: 'Password',
+                labelText: 'Lösenord',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.lock),
               ),
@@ -104,7 +104,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               controller: _confirmPasswordController,
               obscureText: true,
               decoration: InputDecoration(
-                labelText: 'Confirm Password',
+                labelText: 'Bekräfta lösenord',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.lock_outline),
               ),
@@ -120,15 +120,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 foregroundColor: WidgetStateProperty.all(Colors.white),
                 textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
               ),
-              child: Text('Sign Up'),
+              child: Text('Registrera dig'),
             ),
             SizedBox(height: 20),
             Text(
-              'I am registering as:',
+              'Jag registrerar mig som:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             ListTile(
-              title: const Text('Child'),
+              title: const Text('Barn'),
               leading: Radio<String>(
                 value: 'child',
                 groupValue: _selectedRole,
@@ -140,7 +140,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
             ),
             ListTile(
-              title: const Text('Adult'),
+              title: const Text('Vuxen'),
               leading: Radio<String>(
                 value:'adult',
                 groupValue: _selectedRole,

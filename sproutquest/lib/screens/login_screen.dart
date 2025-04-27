@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
       UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
 
-      print("Logged in as: ${userCredential.user?.email}");
+      print("Inloggad som: ${userCredential.user?.email}");
 
       final user = FirebaseAuth.instance.currentUser;
       final userDoc = FirebaseFirestore.instance.collection('users').doc(user!.uid);
@@ -45,18 +45,18 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Role is undefined')),
+            SnackBar(content: Text('Du måste välja en roll för ditt konto')),
           );
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('User data not found')),
+          SnackBar(content: Text('Användardata hittades inte')),
         );
       }
     } catch (e) {
-      print ('login failed');
+      print ('Inloggningen misslyckades');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed. Please check your credentials.')),
+        SnackBar(content: Text('Inloggning misslyckades. Vänligen kontrollera dina inloggningsuppgifter.')),
       );
     }
   }
@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // "Are you ready to save the planet?" text
               Text(
-                'Are you ready to save the planet?',
+                'Är du redo att rädda planeten?',
                 style: TextStyle(
                   fontSize: 35,
                   fontWeight: FontWeight.bold,
@@ -108,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextFormField(
                 controller: _emailController,
                 decoration: InputDecoration(
-                  labelText: 'Email',
+                  labelText: 'E-post',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.email),
                 ),
@@ -121,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _passwordController,
                 obscureText: true,
                 decoration: InputDecoration(
-                  labelText: 'Password',
+                  labelText: 'Lösenord',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.lock),
                 ),
@@ -144,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ), // Set text color to white
                   textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
                 ),
-                child: Text('Login'),
+                child: Text('Logga in'),
               ),
 
               SizedBox(height: 20),
@@ -164,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   );
                 },
                 child: Text(
-                  "Don't have an account? Sign up",
+                  "Har du inget konto? Registrera dig.",
                   style: TextStyle(color: Colors.green.shade700),
                 ),
               ),
@@ -182,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   );
                 },
                 child: Text(
-                  'Forgot your password?',
+                  'Glömt ditt lösenord?',
                   style: TextStyle(color: Colors.green.shade700),
                 ),
               ),
