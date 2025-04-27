@@ -67,12 +67,14 @@ Future<void> _submitMission(String missionTitle, BuildContext context) async {
 
   final firestore = FirebaseFirestore.instance;
   final missionsRef = firestore.collection('missions');
+  final today = DateTime.now();
+  final todayStart = DateTime(today.year, today.month, today.day);
 
-  // 1. Kontrollera om samma mission redan är inskickat (pending eller approved)
   final existingMissions = await missionsRef
       .where('childId', isEqualTo: user.uid)
       .where('missionTitle', isEqualTo: missionTitle)
-      .where('status', whereIn: ['pending', 'approved'])
+      //.where('status', whereIn: ['pending', 'approved'])
+      .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
       .get();
 
   if (existingMissions.docs.isNotEmpty) {
