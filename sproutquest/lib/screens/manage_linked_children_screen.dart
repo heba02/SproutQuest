@@ -59,7 +59,7 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
 
       // 3. Visa en liten SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Child name updated!')),
+        SnackBar(content: Text('Barnets namn uppdaterat!')),
       );
     }
   }
@@ -80,13 +80,13 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
     return Scaffold(
       backgroundColor: Color(0xFFDAD7CD),
       appBar: AppBar(
-        title: Text('Manage Linked Children'),
+        title: Text('Hantera länkade barn'),
         backgroundColor: Colors.green.shade700,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: linkedChildren.isEmpty
-            ? Center(child: Text('No linked children found.'))
+            ? Center(child: Text('Inga länkade barn hittades.'))
             : ListView.builder(
                 itemCount: linkedChildren.length,
                 itemBuilder: (context, index) {
@@ -97,7 +97,7 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
                       title: TextFormField(
                         controller: _controllers[child['childEmail']],
                         decoration: InputDecoration(
-                          labelText: 'Child Name',
+                          labelText: 'Barnets namn',
                         ),
                       ),
                       subtitle: Text(child['childEmail']),
@@ -112,7 +112,7 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
                           backgroundColor: Colors.green.shade700,
                           foregroundColor: Colors.white,
                         ),
-                        child: Text('Save'),
+                        child: Text('Spara'),
                       ),
                     ),
                   );

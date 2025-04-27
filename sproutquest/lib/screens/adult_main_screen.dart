@@ -39,11 +39,11 @@ class _AdultMainScreenState extends State<AdultMainScreen> {
         items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.assignment),
-            label: 'Pending Missions',
+            label: 'Väntande uppdrag',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
-            label: 'Settings',
+            label: 'Inställningar',
           ),
         ],
         onTap: (index) {

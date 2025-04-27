@@ -18,7 +18,7 @@ class ForgotPasswordScreen extends StatelessWidget {
             children: [
               // Heading
               Text(
-                'Enter your email and we will send you a reset link!',
+                'Ange din e-post så skickar vi dig en återställningslänk!',
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
@@ -31,7 +31,7 @@ class ForgotPasswordScreen extends StatelessWidget {
               TextFormField(
                 controller: _emailController,
                 decoration: InputDecoration(
-                  labelText: 'Enter your email...',
+                  labelText: 'Ange din e-postadress...',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.email),
                 ),
@@ -43,7 +43,7 @@ class ForgotPasswordScreen extends StatelessWidget {
               ElevatedButton(
                 onPressed: () {
                   // Handle reset password logic here
-                  print("Sending password reset email...");
+                  print("Skickar e-postmeddelande om återställning av lösenord...");
                 },
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(EdgeInsets.symmetric(vertical: 16, horizontal: 50)),
@@ -51,7 +51,7 @@ class ForgotPasswordScreen extends StatelessWidget {
                   foregroundColor: WidgetStateProperty.all(Colors.white),  // Set text color to white
                   textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
                 ),
-                child: Text('Send reset link'),
+                child: Text('Skicka återställningslänk'),
               ),
 
               SizedBox(height: 20),
@@ -62,7 +62,7 @@ class ForgotPasswordScreen extends StatelessWidget {
                   Navigator.pop(context);  // Navigate back to the login screen
                 },
                 child: Text(
-                  'Back to login',
+                  'Tillbaka till login',
                   style: TextStyle(color: Colors.green.shade700),
                 ),
               ),

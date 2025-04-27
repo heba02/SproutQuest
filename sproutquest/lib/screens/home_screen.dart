@@ -85,7 +85,7 @@ Future<String> compressAndSaveMission(
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      print('No logged in user!');
+      print('Ingen inloggad användare!');
       return '';
     }
 
@@ -104,10 +104,10 @@ Future<String> compressAndSaveMission(
       'proofImageBase64': base64Image, // Store the base64 string here
     });
 
-    print('Mission with base64 image saved!');
+    print('Uppdrag med base64 foto sparat!');
     return base64Image;
   } catch (e) {
-    print('ERROR saving mission: $e');
+    print('Fel uppstod när uppdraget skulle sparas: $e');
     return '';
   }
 }
@@ -136,7 +136,7 @@ Future<void> _submitMissionWithPhoto(
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'You have already submitted or completed this mission! ✋',
+          'Du har redan gjort denna utmaning!✋',
         ),
       ),
     );
@@ -148,7 +148,7 @@ Future<void> _submitMissionWithPhoto(
   final XFile? pickedFile = await picker.pickImage(source: ImageSource.camera);
   if (pickedFile == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Mission cancelled — no photo taken.')),
+      SnackBar(content: Text('Uppdraget genomfördes ej — inget foto togs.')),
     );
     return;
   }
@@ -159,7 +159,7 @@ Future<void> _submitMissionWithPhoto(
 
   if (linkedAdultsRaw.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('No linked adults found. Please add an adult first.')),
+      SnackBar(content: Text('Inga länkade vuxna hittades. Vänligen länka en vuxen först.')),
     );
     return;
   }
@@ -175,7 +175,7 @@ Future<void> _submitMissionWithPhoto(
     context: context,
     builder: (context) {
       return AlertDialog(
-        title: Text('Select Approvers'),
+        title: Text('Välj din godkännare'),
         content: StatefulBuilder(
           builder: (context, setState) {
             return SingleChildScrollView(
@@ -204,11 +204,11 @@ Future<void> _submitMissionWithPhoto(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
+            child: Text('Avbryt'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Submit'),
+            child: Text('Skicka'),
           ),
         ],
       );
@@ -217,7 +217,7 @@ Future<void> _submitMissionWithPhoto(
 
   if (selectedAdults.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Mission submission cancelled.')),
+      SnackBar(content: Text('Uppdraget skickades ej.')),
     );
     return;
   }
@@ -252,7 +252,7 @@ Future<void> _submitMissionWithPhoto(
 
   ScaffoldMessenger.of(
     context,
-  ).showSnackBar(SnackBar(content: Text('Mission submitted with proof! 🌱')));
+  ).showSnackBar(SnackBar(content: Text('Utmaningen skickades med fotobevis! 🌱')));
 }
 
 
@@ -305,9 +305,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(child: CircularProgressIndicator());
               } else if (snapshot.hasError) {
-                return Center(child: Text('Error loading missions'));
+                return Center(child: Text('Gick ej att ladda utmaningar'));
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(child: Text('No missions available today'));
+                return Center(child: Text('Det finns inga tillgängliga utmaningar idag'));
               } else {
                 final missions = snapshot.data!;
 
@@ -342,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               SizedBox(width: 12),
                               Text(
-                                'Your score: $_userScore',
+                                'Din poäng: $_userScore',
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -354,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       Text(
-                        'Your daily missions:',
+                        'Dagens utmaningar:',
                         style: TextStyle(
                           fontSize: 35,
                           fontWeight: FontWeight.bold,
@@ -445,12 +445,12 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.add_chart),
-            label: 'Leaderboard',
+            label: 'Topplista',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Hem'),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
-            label: 'Settings',
+            label: 'Inställningar',
           ),
         ],
         onTap: (index) {

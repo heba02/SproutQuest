@@ -64,7 +64,7 @@ class _ManageLinkedAdultsScreenState extends State<ManageLinkedAdultsScreen> {
     return Scaffold(
       backgroundColor: Color(0xFFDAD7CD),
       appBar: AppBar(
-        title: Text('Manage Linked Adults'),
+        title: Text('Hantera länkade vuxna'),
         backgroundColor: Colors.green.shade700, 
       ),
       body: Padding(
@@ -72,7 +72,7 @@ class _ManageLinkedAdultsScreenState extends State<ManageLinkedAdultsScreen> {
         child: Column(
           children: [
             Text(
-              'Connected Adults:',
+              'Länkade vuxna:',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -94,7 +94,7 @@ class _ManageLinkedAdultsScreenState extends State<ManageLinkedAdultsScreen> {
             TextFormField(
               controller: _nameController,
               decoration: InputDecoration(
-                labelText: 'Enter adult\'s name',
+                labelText: 'Ange namn (t.ex Mamma)',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.person),
               ),
@@ -103,7 +103,7 @@ class _ManageLinkedAdultsScreenState extends State<ManageLinkedAdultsScreen> {
             TextFormField(
               controller: _emailController,
               decoration: InputDecoration(
-                labelText: 'Enter adult\'s email',
+                labelText: 'Ange e-postadress',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.email),
               ),
@@ -118,7 +118,7 @@ class _ManageLinkedAdultsScreenState extends State<ManageLinkedAdultsScreen> {
                 padding: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                 textStyle: TextStyle(fontSize: 18),
               ),
-              child: Text('Add adult'),
+              child: Text('Lägg till vuxen'),
             ),
           ],
         ),
