@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LeaderboardScreen extends StatelessWidget {
-  final List<Map<String, dynamic>> leaderboardData = [
-    {"rank": 1, "name": "Player1", "score": 1500},
-    {"rank": 2, "name": "Player2", "score": 1400},
-    {"rank": 3, "name": "Player3", "score": 1350},
-    {"rank": 4, "name": "Player4", "score": 1300},
-    {"rank": 5, "name": "Player5", "score": 1250},
-  ];
-
-  LeaderboardScreen({super.key});
+  const LeaderboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +10,7 @@ class LeaderboardScreen extends StatelessWidget {
       backgroundColor: Color(0xFFDAD7CD), // Matching background color
       appBar: AppBar(
         title: Text(
-          'Leaderboard',
+          'Topplista',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -36,7 +29,7 @@ class LeaderboardScreen extends StatelessWidget {
         child: Column(
           children: [
             Text(
-              "Top Players",
+              "Toppspelare",
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -45,44 +38,67 @@ class LeaderboardScreen extends StatelessWidget {
             ),
             SizedBox(height: 16),
             Expanded(
-              child: ListView.separated(
-                itemCount: leaderboardData.length,
-                separatorBuilder: (context, index) => Divider(
-                  color: Colors.grey.shade400,
-                  thickness: 0.8,
-                  indent: 20,
-                  endIndent: 20,
-                ),
-                itemBuilder: (context, index) {
-                  final player = leaderboardData[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.green.shade700,
-                      child: Text(
-                        player["rank"].toString(),
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+              child: StreamBuilder<QuerySnapshot>(
+                stream:
+                    FirebaseFirestore.instance
+                        .collection('users')
+                        .orderBy('score', descending: true)
+                        .limit(6)
+                        .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final leaderboard = snapshot.data!.docs;
+
+                  if (leaderboard.isEmpty) {
+                    return const Center(child: Text("Inga spelare än..."));
+                  }
+
+                  return ListView.separated(
+                    itemBuilder: (context, index) {
+                      final player =
+                          leaderboard[index].data() as Map<String, dynamic>;
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.green.shade700,
+                          child: Text(
+                            '#${index + 1}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    title: Text(
-                      player["name"],
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade900,
-                      ),
-                    ),
-                    trailing: Text(
-                      "${player["score"]} pts",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
+                        title: Text(
+                          player['email'] ?? 'Unknown',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade900,
+                          ),
+                        ),
+                        trailing: Text(
+                          "${player['score'] ?? 0} p",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ); //TODO
+                    },
+                    separatorBuilder:
+                        (context, index) => Divider(
+                          color: Colors.grey.shade400,
+                          thickness: 0.8,
+                          indent: 20,
+                          endIndent: 20,
+                        ),
+                    itemCount: leaderboard.length,
                   );
                 },
               ),
@@ -93,4 +109,3 @@ class LeaderboardScreen extends StatelessWidget {
     );
   }
 }
-

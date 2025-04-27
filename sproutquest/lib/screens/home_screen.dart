@@ -3,17 +3,22 @@ import 'settings_screen.dart';
 import 'leaderboard_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:io';
+import 'package:image/image.dart' as img;
+import 'dart:convert';
 
 ButtonStyle buttonStyle() {
   return ButtonStyle(
     padding: WidgetStateProperty.all(
-        EdgeInsets.symmetric(vertical: 16, horizontal: 24)),
+      EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+    ),
     backgroundColor: WidgetStateProperty.all(Colors.green.shade700),
     foregroundColor: WidgetStateProperty.all(Colors.white),
     shape: WidgetStateProperty.all(
-      RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
     textStyle: WidgetStateProperty.all(TextStyle(fontSize: 18)),
   );
@@ -39,7 +44,8 @@ Future<Map<String, String>> fetchTodayMissions() async {
     Map<String, String> selectedMissions = {};
 
     for (String category in categories) {
-      final challengeSnapshot = await firestore.collection('challenges').doc(category).get();
+      final challengeSnapshot =
+          await firestore.collection('challenges').doc(category).get();
       if (challengeSnapshot.exists) {
         final data = challengeSnapshot.data()!;
         final missions = data.values.toList();
@@ -60,8 +66,59 @@ Future<Map<String, String>> fetchTodayMissions() async {
   }
 }
 
+Future<String> compressAndSaveMission(
+  XFile pickedFile,
+  String missionTitle,
+  List<Map<String, dynamic>> selectedAdults,
+) async {
+  try {
+    final File imageFile = File(pickedFile.path);
+    final bytes = await imageFile.readAsBytes();
 
-Future<void> _submitMission(String missionTitle, BuildContext context) async {
+    // Decode, resize, and compress image
+    final originalImage = img.decodeImage(bytes);
+    if (originalImage == null) throw Exception('Could not decode image');
+    final resized = img.copyResize(originalImage, width: 300); // Resize width to 300px
+    final compressed = img.encodeJpg(resized, quality: 70); // Compress to 70% quality
+
+    final base64Image = base64Encode(compressed); // Convert to base64
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print('Ingen inloggad användare!');
+      return '';
+    }
+
+    final firestore = FirebaseFirestore.instance;
+    final missionsRef = firestore.collection('missions');
+    final missionDoc = missionsRef.doc();
+
+    await missionDoc.set({
+      'childId': user.uid,
+      'childEmail': user.email,
+      'missionTitle': missionTitle,
+      'status': 'pending',
+      'timestamp': FieldValue.serverTimestamp(),
+      'approvers': selectedAdults.map((adult) => adult['email']).toList(),
+      'approvedBy': [],
+      'proofImageBase64': base64Image, // Store the base64 string here
+    });
+
+    print('Uppdrag med base64 foto sparat!');
+    return base64Image;
+  } catch (e) {
+    print('Fel uppstod när uppdraget skulle sparas: $e');
+    return '';
+  }
+}
+
+
+
+Future<void> _submitMissionWithPhoto(
+  String missionTitle,
+  BuildContext context,
+) async {
+  
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return;
 
@@ -79,31 +136,48 @@ Future<void> _submitMission(String missionTitle, BuildContext context) async {
 
   if (existingMissions.docs.isNotEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('You have already submitted or completed this mission! ✋')),
+      SnackBar(
+        content: Text(
+          'Du har redan gjort denna utmaning!✋',
+        ),
+      ),
     );
     return;
   }
 
-  // 2. Hämta kopplade vuxna
+    // 2. Pick image
+  final picker = ImagePicker();
+  final XFile? pickedFile = await picker.pickImage(source: ImageSource.camera);
+  if (pickedFile == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Uppdraget genomfördes ej — inget foto togs.')),
+    );
+    return;
+  }
+
+
   final userDoc = await firestore.collection('users').doc(user.uid).get();
   final List<dynamic> linkedAdultsRaw = userDoc.data()?['linkedAdults'] ?? [];
 
   if (linkedAdultsRaw.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('No linked adults found. Please add an adult first.')),
+      SnackBar(content: Text('Inga länkade vuxna hittades. Vänligen länka en vuxen först.')),
     );
     return;
   }
 
-  List<Map<String, dynamic>> linkedAdults = linkedAdultsRaw.cast<Map<String, dynamic>>();
+  List<Map<String, dynamic>> linkedAdults = linkedAdultsRaw
+      .whereType<Map<String, dynamic>>()
+      .where((adult) => adult['email'] != null && adult['email'].toString().isNotEmpty)
+      .toList();
+
   List<Map<String, dynamic>> selectedAdults = [];
 
-  // 3. Visa en dialog där barnet kan välja vuxna
   await showDialog(
     context: context,
     builder: (context) {
       return AlertDialog(
-        title: Text('Select Approvers'),
+        title: Text('Välj din godkännare'),
         content: StatefulBuilder(
           builder: (context, setState) {
             return SingleChildScrollView(
@@ -131,16 +205,12 @@ Future<void> _submitMission(String missionTitle, BuildContext context) async {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Stäng utan val
-            },
-            child: Text('Cancel'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Avbryt'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Bekräfta val
-            },
-            child: Text('Submit'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Skicka'),
           ),
         ],
       );
@@ -149,37 +219,20 @@ Future<void> _submitMission(String missionTitle, BuildContext context) async {
 
   if (selectedAdults.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Mission submission cancelled.')),
+      SnackBar(content: Text('Uppdraget skickades ej.')),
     );
     return;
   }
+  // Upload image and save mission details
+  final base64Image = await compressAndSaveMission(pickedFile, missionTitle, selectedAdults);
 
-  // 4. Skapa mission i Firestore
-  final missionDoc = missionsRef.doc();
 
-  await missionDoc.set({
-    'childId': user.uid,
-    'childEmail': user.email,
-    'missionTitle': missionTitle,
-    'status': 'pending',
-    'timestamp': FieldValue.serverTimestamp(),
-    'approvers': selectedAdults.map((adult) => adult['email']).toList(),
-    'approvedBy': [],
-  });
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Mission submitted for approval! 🌱')),
-  );
-
-  // 5. Lägg till barnet i varje vald vuxens linkedChildren om det inte redan finns
+  // Ensure child is linked to each selected adult
   for (final adult in selectedAdults) {
     final adultEmail = adult['email'];
 
-    final adultQuery = await firestore
-        .collection('users')
-        .where('email', isEqualTo: adultEmail)
-        .limit(1)
-        .get();
+    final adultQuery =
+        await firestore.collection('users').where('email', isEqualTo: adultEmail).limit(1).get();
 
     if (adultQuery.docs.isNotEmpty) {
       final adultDoc = adultQuery.docs.first;
@@ -192,17 +245,17 @@ Future<void> _submitMission(String missionTitle, BuildContext context) async {
       if (!alreadyLinked) {
         await adultDocRef.update({
           'linkedChildren': FieldValue.arrayUnion([
-            {
-              'childEmail': user.email,
-              'displayName': user.email,
-            }
+            {'childEmail': user.email, 'displayName': user.email},
           ]),
         });
       }
     }
   }
-}
 
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text('Utmaningen skickades med fotobevis! 🌱')));
+}
 
 
 class HomeScreen extends StatefulWidget {
@@ -224,7 +277,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchUserScore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
       if (doc.exists) {
         setState(() {
           _userScore = (doc.data()?['score'] ?? 0) as int;
@@ -235,96 +292,141 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    double imageSize = (100 + _userScore.toDouble()).clamp(
+      100.0,
+      300.0,
+    ); // base size + score growth
+
     return Scaffold(
       backgroundColor: Color(0xFFDAD7CD), // Matching background color
-      body: FutureBuilder<Map<String, String>>(
-        future: fetchTodayMissions(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error loading missions'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('No missions available today'));
-          } else {
-            final missions = snapshot.data!;
+      body: Stack(
+        children: [
+          FutureBuilder<Map<String, String>>(
+            future: fetchTodayMissions(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return Center(child: Text('Gick ej att ladda utmaningar'));
+              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Center(child: Text('Det finns inga tillgängliga utmaningar idag'));
+              } else {
+                final missions = snapshot.data!;
 
-            return Padding(
-              padding: const EdgeInsets.only(top: 75, left: 24, right: 24, bottom: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade100,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.emoji_events, color: Colors.green.shade800, size: 28),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Your score: $_userScore',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green.shade800,
-                                  ),
+                return Padding(
+                  padding: const EdgeInsets.only(
+                    top: 75,
+                    left: 24,
+                    right: 24,
+                    bottom: 24,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.emoji_events,
+                                color: Colors.green.shade800,
+                                size: 28,
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                'Din poäng: $_userScore',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green.shade800,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-                  Text(
-                    'Your daily missions:',
-                    style: TextStyle(
-                      fontSize: 35,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green.shade700,
-                    ),
+                      ),
+                      Text(
+                        'Dagens utmaningar:',
+                        style: TextStyle(
+                          fontSize: 35,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                      SizedBox(height: 40),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['battery']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['pant']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['trash']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 40),
-                  ElevatedButton(
-                    onPressed: () {
-                      _submitMission(missions['battery']!, context);
-                    },
-                    style: buttonStyle(),
-                    child: Text(
-                      missions['battery']!,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      _submitMission(missions['pant']!, context);
-                    },
-                    style: buttonStyle(),
-                    child: Text(
-                      missions['pant']!,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      _submitMission(missions['trash']!, context);
-                    },
-                    style: buttonStyle(),
-                    child: Text(
-                      missions['trash']!,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
+                );
+              }
+            },
+          ),
+
+          // Growing plant image
+          Positioned(
+            bottom: 70, // height above bottom nav bar
+            left: 0,
+            right: 0,
+            child: Center(
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 500),
+                width: 200 + imageSize,
+                height: 200 + imageSize,
+                child: Image.asset('assets/images/plant.png'),
               ),
-            );
-          }
-        },
+            ),
+          ),
+        ],
       ),
 
       // The bottom navigation bar remains as is...
@@ -345,15 +447,12 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.add_chart),
-            label: 'Leaderboard',
+            label: 'Topplista',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Hem'),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
-            label: 'Settings',
+            label: 'Inställningar',
           ),
         ],
         onTap: (index) {
@@ -361,20 +460,16 @@ class _HomeScreenState extends State<HomeScreen> {
             case 0:
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => LeaderboardScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => LeaderboardScreen()),
               );
               break;
             case 1:
-            // Stay on Home
+              // Stay on Home
               break;
             case 2:
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => SettingsScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
               );
               break;
           }
