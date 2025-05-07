@@ -9,6 +9,9 @@ import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:image/image.dart' as img;
 import 'dart:convert';
+import 'battery_screen.dart';
+import 'trash_screen.dart';
+import 'pant_screen.dart';
 import 'package:confetti/confetti.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -80,8 +83,14 @@ Future<String> compressAndSaveMission(
     // Decode, resize, and compress image
     final originalImage = img.decodeImage(bytes);
     if (originalImage == null) throw Exception('Could not decode image');
-    final resized = img.copyResize(originalImage, width: 300); // Resize width to 300px
-    final compressed = img.encodeJpg(resized, quality: 70); // Compress to 70% quality
+    final resized = img.copyResize(
+      originalImage,
+      width: 300,
+    ); // Resize width to 300px
+    final compressed = img.encodeJpg(
+      resized,
+      quality: 70,
+    ); // Compress to 70% quality
 
     final base64Image = base64Encode(compressed); // Convert to base64
 
@@ -114,9 +123,8 @@ Future<String> compressAndSaveMission(
   }
 }
 
-Future<void> _submitMissionWithPhoto(
+Future<void> submitMissionWithPhoto(
   String missionTitle,
-  String missionType,
   BuildContext context,
 ) async {
   final user = FirebaseAuth.instance.currentUser;
@@ -124,105 +132,88 @@ Future<void> _submitMissionWithPhoto(
 
   final firestore = FirebaseFirestore.instance;
   final missionsRef = firestore.collection('missions');
-  final today = DateTime.now();
-  final todayStart = DateTime(today.year, today.month, today.day);
+  final todayStart = DateTime.now();
+  final startOfDay = DateTime(todayStart.year, todayStart.month, todayStart.day);
 
-  // Kontrollera om mission redan skickats idag
-  final existingMissions = await missionsRef
-      .where('childId', isEqualTo: user.uid)
-      .where('missionTitle', isEqualTo: missionTitle)
-      .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
-      .get();
+
+  // Check for duplicate pending/approved mission
+  final existingMissions =
+      await missionsRef
+          .where('childId', isEqualTo: user.uid)
+          .where('missionTitle', isEqualTo: missionTitle)
+          .where('status', whereIn: ['pending', 'approved'])
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .get();
 
   if (existingMissions.docs.isNotEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Du har redan gjort denna utmaning idag! ✋')),
+      SnackBar(content: Text('Du har redan gjort denna utmaning!✋')),
     );
     return;
   }
 
-  // Fråga om barnet vill lägga till bild
-  bool attachImage = await showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: Text('Vill du lägga till ett foto?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Nej, skicka utan bild'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Ja, lägg till bild'),
-          ),
-        ],
-      );
-    },
-  );
-
-  String? base64Image;
-
-  if (attachImage) {
-    final picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickImage(source: ImageSource.camera);
-
-    if (pickedFile != null) {
-      final bytes = await File(pickedFile.path).readAsBytes();
-      final originalImage = img.decodeImage(bytes);
-      if (originalImage != null) {
-        final resized = img.copyResize(originalImage, width: 300);
-        final compressed = img.encodeJpg(resized, quality: 70);
-        base64Image = base64Encode(compressed);
-      }
-    }
+  // 2. Pick image
+  final picker = ImagePicker();
+  final XFile? pickedFile = await picker.pickImage(source: ImageSource.camera);
+  if (pickedFile == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Uppdraget genomfördes ej — inget foto togs.')),
+    );
+    return;
   }
 
-  // Hämta kopplade vuxna
   final userDoc = await firestore.collection('users').doc(user.uid).get();
   final List<dynamic> linkedAdultsRaw = userDoc.data()?['linkedAdults'] ?? [];
 
   if (linkedAdultsRaw.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Inga kopplade vuxna hittades. Lägg till en först!')),
+      SnackBar(
+        content: Text(
+          'Inga länkade vuxna hittades. Vänligen länka en vuxen först.',
+        ),
+      ),
     );
     return;
   }
 
-  List<Map<String, dynamic>> linkedAdults = linkedAdultsRaw
-      .whereType<Map<String, dynamic>>()
-      .where((adult) => adult['email'] != null && adult['email'].toString().isNotEmpty)
-      .toList();
+  List<Map<String, dynamic>> linkedAdults =
+      linkedAdultsRaw
+          .whereType<Map<String, dynamic>>()
+          .where(
+            (adult) =>
+                adult['email'] != null && adult['email'].toString().isNotEmpty,
+          )
+          .toList();
 
   List<Map<String, dynamic>> selectedAdults = [];
 
-  // Välj vilka vuxna som ska godkänna
   await showDialog(
     context: context,
     builder: (context) {
       return AlertDialog(
-        title: Text('Välj godkännare'),
+        title: Text('Välj din godkännare'),
         content: StatefulBuilder(
           builder: (context, setState) {
             return SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: linkedAdults.map((adult) {
-                  final isSelected = selectedAdults.contains(adult);
-                  return CheckboxListTile(
-                    title: Text(adult['name'] ?? adult['email']),
-                    value: isSelected,
-                    onChanged: (bool? value) {
-                      setState(() {
-                        if (value == true) {
-                          selectedAdults.add(adult);
-                        } else {
-                          selectedAdults.remove(adult);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
+                children:
+                    linkedAdults.map((adult) {
+                      final isSelected = selectedAdults.contains(adult);
+                      return CheckboxListTile(
+                        title: Text(adult['name'] ?? adult['email']),
+                        value: isSelected,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              selectedAdults.add(adult);
+                            } else {
+                              selectedAdults.remove(adult);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
               ),
             );
           },
@@ -242,44 +233,39 @@ Future<void> _submitMissionWithPhoto(
   );
 
   if (selectedAdults.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Inget mission skickades.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Uppdraget skickades ej.')));
     return;
   }
+  // Upload image and save mission details
+  final base64Image = await compressAndSaveMission(
+    pickedFile,
+    missionTitle,
+    selectedAdults,
+  );
 
-  // Skapa mission-dokument
-  final missionDoc = missionsRef.doc();
-
-  await missionDoc.set({
-    'childId': user.uid,
-    'childEmail': user.email,
-    'missionTitle': missionTitle,
-    'missionType': missionType,
-    'status': 'pending',
-    'timestamp': FieldValue.serverTimestamp(),
-    'approvers': selectedAdults.map((adult) => adult['email']).toList(),
-    'approvedBy': [],
-    if (base64Image != null) 'proofImageBase64': base64Image,
-  });
-
-  // Koppla barnet till varje vuxen om inte redan kopplat
+  // Ensure child is linked to each selected adult
   for (final adult in selectedAdults) {
     final adultEmail = adult['email'];
 
-    final adultQuery = await firestore
-        .collection('users')
-        .where('email', isEqualTo: adultEmail)
-        .limit(1)
-        .get();
+    final adultQuery =
+        await firestore
+            .collection('users')
+            .where('email', isEqualTo: adultEmail)
+            .limit(1)
+            .get();
 
     if (adultQuery.docs.isNotEmpty) {
       final adultDoc = adultQuery.docs.first;
       final adultDocRef = adultDoc.reference;
 
-      final List<dynamic> linkedChildren = adultDoc.data()['linkedChildren'] ?? [];
+      final List<dynamic> linkedChildren =
+          adultDoc.data()['linkedChildren'] ?? [];
 
-      final alreadyLinked = linkedChildren.any((child) => child['childEmail'] == user.email);
+      final alreadyLinked = linkedChildren.any(
+        (child) => child['childEmail'] == user.email,
+      );
 
       if (!alreadyLinked) {
         await adultDocRef.update({
@@ -292,10 +278,25 @@ Future<void> _submitMissionWithPhoto(
   }
 
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Uppdrag skickades! 🌱')),
+    SnackBar(content: Text('Utmaningen skickades med fotobevis! 🌱')),
   );
 }
 
+Future<bool> isMissionApproved(String missionTitle, String userId) async {
+  final firestore = FirebaseFirestore.instance;
+
+  // Fetch the mission document for the specific mission
+  final missionSnapshot = await firestore
+      .collection('missions')
+      .where('childId', isEqualTo: userId)
+      .where('missionTitle', isEqualTo: missionTitle)
+      .where('status', isEqualTo: 'approved')
+      .get();
+
+  print("Fetched ${missionSnapshot.docs.length} missions for $missionTitle with status 'approved'");
+
+  return missionSnapshot.docs.isNotEmpty;
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -306,15 +307,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _userScore = 0;
-  String _lastStage = '';
+  bool isBatteryApproved = false;
+  bool isPantApproved = false;
+  bool isTrashApproved = false;
   late ConfettiController _confettiController;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserScore();
     _confettiController = ConfettiController(duration: Duration(seconds: 2));
-    _checkForApprovedMissions();
+    _fetchUserScoreAndApprovals(); // Ensure score is fetched first
   }
 
   @override
@@ -323,25 +325,116 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchUserScore() async {
+  // Fetch the user score
+  Future<void> _fetchUserScoreAndApprovals() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      if (doc.exists) {
-        final newScore = (doc.data()?['score'] ?? 0) as int;
-        final newStage = _getPlantStageNameByScore(newScore);
+    if (user == null) return;
 
-        if (_lastStage.isNotEmpty && newStage != _lastStage) {
-          _showLevelUpPopup(newStage);
-        }
+    final prefs = await SharedPreferences.getInstance();
+    final firestore = FirebaseFirestore.instance;
+    final userDoc = await firestore.collection('users').doc(user.uid).get();
+    final missions = await fetchTodayMissions();
+    final DateTime today = DateTime.now();
+    final DateTime startOfDay = DateTime(today.year, today.month, today.day);
 
+    final int score = (userDoc.data()?['score'] ?? 0) as int;
+    setState(() {
+      _userScore = score;
+    });
+
+    for (String key in missions.keys) {
+      final title = missions[key]!;
+      final query = await firestore
+          .collection('missions')
+          .where('childId', isEqualTo: user.uid)
+          .where('missionTitle', isEqualTo: title)
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final docId = query.docs.first.id;
+
+        await Future.delayed(Duration(milliseconds: 300));
+        _confettiController.play();
+        _showApprovedPopup(title);
+        
         setState(() {
-          _userScore = newScore;
-          _lastStage = newStage;
+          if (key == 'battery') isBatteryApproved = true;
+          if (key == 'pant') isPantApproved = true;
+          if (key == 'trash') isTrashApproved = true;
         });
       }
     }
+
+    await _checkForNewApprovedMission(user.uid);
   }
+
+
+  Future<void> _checkForNewApprovedMission(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final missionSnapshot = await FirebaseFirestore.instance
+        .collection('missions')
+        .where('childId', isEqualTo: userId)
+        .where('status', isEqualTo: 'approved')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+
+    if (missionSnapshot.docs.isNotEmpty) {
+      final docId = missionSnapshot.docs.first.id;
+
+      if (prefs.getString('lastApprovedMission') != docId) {
+        _confettiController.play();
+
+        final missionTitle = missionSnapshot.docs.first.data()['missionTitle'];
+        _showApprovedPopup(missionTitle);
+
+        await prefs.setString('lastApprovedMission', docId);
+      }
+    }
+  }
+
+  void _showApprovedPopup(String title) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.green.shade100,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Center(
+            child: Text('🎉 Grattis! 🎉', style: TextStyle(fontSize: 24, color: Colors.green.shade800)),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Uppdraget "$title" har blivit godkänt!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 20, color: Colors.green.shade700),
+              ),
+              SizedBox(height: 20),
+              Icon(Icons.check_circle, color: Colors.green.shade800, size: 60),
+            ],
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Okej!'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   String _getPlantImage() {
     if (_userScore < 50) {
@@ -367,350 +460,300 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _getPlantStageName() => _getPlantStageNameByScore(_userScore);
 
-  void _showLevelUpPopup(String stageName) {
-    _confettiController.play();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.green.shade100,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Center(
-            child: Text(
-              '🎉 Grattis! 🎉',
-              style: TextStyle(fontSize: 24, color: Colors.green.shade800),
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Du är nu en $stageName!',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 20, color: Colors.green.shade700),
-              ),
-              SizedBox(height: 20),
-              Icon(Icons.eco, color: Colors.green.shade800, size: 60),
-            ],
-          ),
-          actions: [
-            Center(
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text('Fortsätt'),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _checkForApprovedMissions() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final lastCheck = prefs.getString('lastApprovedMission') ?? '';
-
-    final missionSnapshot = await FirebaseFirestore.instance
-        .collection('missions')
-        .where('childId', isEqualTo: user.uid)
-        .where('status', isEqualTo: 'approved')
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
-
-    if (missionSnapshot.docs.isNotEmpty) {
-      final missionId = missionSnapshot.docs.first.id;
-
-      if (missionId != lastCheck) {
-        _confettiController.play();
-
-        await showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              backgroundColor: Colors.green.shade100,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Center(
-                child: Text(
-                  '🎉 Grattis! 🎉',
-                  style: TextStyle(fontSize: 24, color: Colors.green.shade800),
-                ),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Ett av dina uppdrag har blivit godkänt!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 20, color: Colors.green.shade700),
-                  ),
-                  SizedBox(height: 20),
-                  Icon(Icons.check_circle, color: Colors.green.shade800, size: 60),
-                ],
-              ),
-              actions: [
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade700,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Text('Okej!'),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-
-        // Spara senaste mission-id efter att popup visats
-        await prefs.setString('lastApprovedMission', missionId);
-      }
-    }
-  }
 
 
-  Future<String> _getMissionStatus(String missionType) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return 'none';
-
-    final missionSnapshot = await FirebaseFirestore.instance
-        .collection('missions')
-        .where('childId', isEqualTo: user.uid)
-        .where('missionType', isEqualTo: missionType)
-        .orderBy('timestamp', descending: true)
-        .limit(1)
-        .get();
-
-    if (missionSnapshot.docs.isEmpty) {
-      print ('No missions found for $missionType');
-      return 'none';
-    }
-
-    print ('Mission status for $missionType: ${missionSnapshot.docs.first.data()['status']}');
-    return missionSnapshot.docs.first.data()['status'] ?? 'none';
-  }
 
   @override
   Widget build(BuildContext context) {
+    double imageSize = (100 + _userScore.toDouble()).clamp(
+      100.0,
+      300.0,
+    ); // base size + score growth
+
     return Scaffold(
-      backgroundColor: const Color(0xFFDAD7CD),
+      backgroundColor: Color(0xFFDAD7CD), // Matching background color
       body: Stack(
         children: [
-          ConfettiWidget(
-            confettiController: _confettiController,
-            blastDirectionality: BlastDirectionality.explosive,
-            shouldLoop: false,
-            colors: [
-              Colors.green,
-              Colors.lightGreen,
-              Colors.blueAccent,
-              Colors.yellow,
-            ],
-            numberOfParticles: 30,
-            maxBlastForce: 20,
-            minBlastForce: 10,
-            gravity: 0.3,
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirection: -3.14 / 2, // Spraya uppåt
+              emissionFrequency: 0.05,
+              numberOfParticles: 30,
+              maxBlastForce: 20,
+              minBlastForce: 10,
+              gravity: 0.3,
+              shouldLoop: false,
+              colors: [
+                Colors.green,
+                Colors.lightGreen,
+                Colors.yellow,
+                Colors.teal,
+              ],
+            ),
           ),
           FutureBuilder<Map<String, String>>(
             future: fetchTodayMissions(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(child: CircularProgressIndicator());
               } else if (snapshot.hasError) {
-                return const Center(child: Text('Gick ej att ladda utmaningar'));
+                return Center(child: Text('Gick ej att ladda utmaningar'));
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text('Det finns inga tillgängliga utmaningar idag'));
+                return Center(
+                  child: Text('Det finns inga tillgängliga utmaningar idag'),
+                );
               } else {
                 final missions = snapshot.data!;
 
                 return Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.emoji_events, color: Colors.green, size: 28),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Din poäng: $_userScore',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green.shade800,
-                                  ),
-                                ),
-                              ],
-                            ),
+                  padding: const EdgeInsets.only(
+                    top: 75,
+                    left: 24,
+                    right: 24,
+                    bottom: 24,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
                           ),
-                        ),
-                        Column(
-                          children: [
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 500),
-                              child: Image.asset(
-                                _getPlantImage(),
-                                key: ValueKey(_getPlantImage()),
-                                height: 200,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              _getPlantStageName(),
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.emoji_events,
                                 color: Colors.green.shade800,
+                                size: 28,
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 40),
-                        Text(
-                          'Dagens utmaningar:',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
+                              SizedBox(width: 12),
+                              Text(
+                                'Din poäng: $_userScore',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green.shade800,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 40),
-                        FutureBuilder<String>(
-                          future: _getMissionStatus('battery'),
-                          builder: (context, statusSnapshot) {
-                            String status = statusSnapshot.data ?? 'none';
-                            IconData icon;
-                            Color iconColor;
-
-                            if (status == 'pending') {
-                              icon = Icons.hourglass_empty;
-                              iconColor = Colors.orange;
-                            } else if (status == 'approved') {
-                              icon = Icons.check_circle;
-                              iconColor = Colors.green;
-                            } else {
-                              icon = Icons.radio_button_unchecked;
-                              iconColor = Colors.grey;
-                            }
-
-                            return ElevatedButton.icon(
-                              onPressed: () {
-                                _submitMissionWithPhoto(missions['battery']!, 'battery', context);
-                              },
-                              icon: Icon(icon, color: iconColor),
-                              label: Text(
-                                missions['battery']!,
-                                textAlign: TextAlign.center,
-                              ),
-                              style: buttonStyle(),
-                            );
-                          },
+                      ),
+                      Text(
+                        'Dagens utmaningar:',
+                        style: TextStyle(
+                          fontSize: 35,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700,
                         ),
-                        const SizedBox(height: 16),
-                        FutureBuilder<String>(
-                          future: _getMissionStatus('pant'),
-                          builder: (context, statusSnapshot) {
-                            String status = statusSnapshot.data ?? 'none';
-                            IconData icon;
-                            Color iconColor;
+                      ),
 
-                            if (status == 'pending') {
-                              icon = Icons.hourglass_empty;
-                              iconColor = Colors.orange;
-                            } else if (status == 'approved') {
-                              icon = Icons.check_circle;
-                              iconColor = Colors.green;
-                            } else {
-                              icon = Icons.radio_button_unchecked;
-                              iconColor = Colors.grey;
-                            }
-
-                            return ElevatedButton.icon(
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
                               onPressed: () {
-                                _submitMissionWithPhoto(missions['pant']!, 'pant', context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => TrashScreen(
+                                          mission: missions['trash']!,
+                                        ),
+                                  ),
+                                );
                               },
-                              icon: Icon(icon, color: iconColor),
-                              label: Text(
-                                missions['pant']!,
-                                textAlign: TextAlign.center,
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
                               ),
-                              style: buttonStyle(),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        FutureBuilder<String>(
-                          future: _getMissionStatus('trash'),
-                          builder: (context, statusSnapshot) {
-                            String status = statusSnapshot.data ?? 'none';
-                            IconData icon;
-                            Color iconColor;
-
-                            if (status == 'pending') {
-                              icon = Icons.hourglass_empty;
-                              iconColor = Colors.orange;
-                            } else if (status == 'approved') {
-                              icon = Icons.check_circle;
-                              iconColor = Colors.green;
-                            } else {
-                              icon = Icons.radio_button_unchecked;
-                              iconColor = Colors.grey;
-                            }
-
-                            return ElevatedButton.icon(
+                              child: Icon(
+                                isTrashApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .recycling, // Show checkmark if approved
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
                               onPressed: () {
-                                _submitMissionWithPhoto(missions['trash']!, 'trash', context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => PantScreen(
+                                          mission: missions['pant']!,
+                                        ),
+                                  ),
+                                );
                               },
-                              icon: Icon(icon, color: iconColor),
-                              label: Text(
-                                missions['trash']!,
-                                textAlign: TextAlign.center,
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
                               ),
-                              style: buttonStyle(),
-                            );
-                          },
+                              child: Icon(
+                                isPantApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .energy_savings_leaf_rounded, // Show checkmark if approved
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => BatteryScreen(
+                                          mission: missions['battery']!,
+                                        ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
+                              ),
+                              child: Icon(
+                                isBatteryApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .battery_charging_full, // Show checkmark if approved
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      /*  SizedBox(height: 40),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['battery']!,
+                          textAlign: TextAlign.center,
                         ),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['pant']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['trash']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),*/
+                    ],
                   ),
                 );
               }
             },
           ),
+
+          // Growing plant image
+          Positioned(
+            bottom: 70,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Column(
+                children: [
+                  AnimatedSwitcher(
+                    duration: Duration(milliseconds: 500),
+                    child: Image.asset(
+                      _getPlantImage(),
+                      key: ValueKey(_getPlantImage()),
+                      height: MediaQuery.of(context).size.height * 0.3,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    _getPlantStageNameByScore(_userScore),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+      // Add the bottom navigation bar to the Scaffold
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.green.shade700,
         selectedItemColor: Colors.white,
         unselectedItemColor: Colors.grey.shade400,
         type: BottomNavigationBarType.fixed,
         currentIndex: 1,
-        items: const [
+        selectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.normal,
+          fontSize: 12,
+        ),
+        items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.add_chart),
             label: 'Topplista',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Hem',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Hem'),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Inställningar',
@@ -721,16 +764,16 @@ class _HomeScreenState extends State<HomeScreen> {
             case 0:
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const LeaderboardScreen()),
+                MaterialPageRoute(builder: (context) => LeaderboardScreen()),
               );
               break;
             case 1:
-              // Already on Home
+              // Stay on Home
               break;
             case 2:
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
               );
               break;
           }
