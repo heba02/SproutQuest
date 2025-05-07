@@ -30,8 +30,9 @@ class _MissionPendingScreenState extends State<MissionPendingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFDAD7CD),
       appBar: AppBar(
-        title: Text("Uppdrag skickat!"),
+        title: Text("Uppdrag skickat!",),
         backgroundColor: Colors.green[700],
       ),
       body: Center(
@@ -48,8 +49,8 @@ class _MissionPendingScreenState extends State<MissionPendingScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              "Ditt uppdrag har skickats och väntar på godkännande!",
-              style: const TextStyle(fontSize: 18),
+              "Ditt uppdrag har skickats och \n väntar på godkännande!",
+              style: const TextStyle(fontSize: 22, color: Color.fromARGB(221, 9, 47, 5)),
               textAlign: TextAlign.center,
             ),
           ],
