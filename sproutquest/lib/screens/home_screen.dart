@@ -14,6 +14,7 @@ import 'battery_screen.dart';
 import 'trash_screen.dart';
 import 'pant_screen.dart';
 import 'mission_done_screen.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 
 ButtonStyle buttonStyle() {
@@ -562,10 +563,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                                 ),
                               ),
                               child: Icon(
-                                isTrashApproved ? Icons.check : isTrashPending ? Icons.hourglass_bottom : Icons.recycling_outlined,
-                                size: 40,
-                                color: Colors.white,
-                              ),
+                                isTrashApproved ? Icons.check : isTrashPending ? Icons.hourglass_bottom : FontAwesomeIcons.trashCan, color: Colors.white, size: 40                             ),
                             ),
                           ),
                           SizedBox(width: 8),
