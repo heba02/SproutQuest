@@ -16,6 +16,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _confirmPasswordController = TextEditingController();
   String _selectedRole = 'child';
 
+  Future<bool> _userNameCheck(String usrNme) async {
+    final querySnapshot = await FirebaseFirestore.instance.collection('users').where('username', isEqualTo: usrNme).get();
+
+    if(querySnapshot.docs.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Användarnamn används redan. Vänligen välj ett annat användarnamn.')),
+      );
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _signUp() async {
     String email = _emailController.text.trim();
     String username = _userName.text.trim();
@@ -26,6 +38,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lösenorden matchar ej!')),
       );
+      return;
+    }
+
+    // username checking. If it already is used or not.
+    bool userNameisTaken = await _userNameCheck(username);
+    if (userNameisTaken) {
       return;
     }
 
