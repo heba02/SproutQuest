@@ -74,7 +74,7 @@ class LeaderboardScreen extends StatelessWidget {
                           ),
                         ),
                         title: Text(
-                          player['email'] ?? 'Unknown',
+                          player['username'] ?? player['email'],
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
