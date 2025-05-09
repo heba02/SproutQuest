@@ -13,6 +13,8 @@ import 'dart:convert';
 import 'battery_screen.dart';
 import 'trash_screen.dart';
 import 'pant_screen.dart';
+import 'package:confetti/confetti.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'mission_done_screen.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -94,6 +96,7 @@ Future<String> compressAndSaveMission(
       quality: 70,
     ); // Compress to 70% quality
 
+
     final base64Image = base64Encode(compressed); // Convert to base64
 
     final user = FirebaseAuth.instance.currentUser;
@@ -134,6 +137,9 @@ Future<void> submitMissionWithPhoto(
 
   final firestore = FirebaseFirestore.instance;
   final missionsRef = firestore.collection('missions');
+  final todayStart = DateTime.now();
+  final startOfDay = DateTime(todayStart.year, todayStart.month, todayStart.day);
+
 
   // Check for duplicate pending/approved mission
   final existingMissions =
@@ -141,6 +147,7 @@ Future<void> submitMissionWithPhoto(
           .where('childId', isEqualTo: user.uid)
           .where('missionTitle', isEqualTo: missionTitle)
           .where('status', whereIn: ['pending', 'approved'])
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .get();
 
   if (existingMissions.docs.isNotEmpty) {
@@ -343,17 +350,18 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     super.didChangeDependencies();
     // Subscribe to the route observer when the screen becomes visible
     routeObserver.subscribe(this, ModalRoute.of(context) as PageRoute<dynamic>);
-    _fetchUserScore(); // Refresh mission status here
+    _fetchUserScoreAndApprovals(); // Refresh mission status here
   }
 
   @override
   void didPopNext() {
     // This method will be called when the user navigates back to this screen
-    _fetchUserScore(); // Refresh the mission status when coming back to the screen
+    _fetchUserScoreAndApprovals(); // Refresh the mission status when coming back to the screen
   }
 
   @override
   void dispose() {
+    _confettiController.dispose();
     // Unsubscribe from the route observer to avoid memory leaks
     routeObserver.unsubscribe(this);
     super.dispose();
@@ -369,73 +377,170 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   bool isPantPending = false;
   bool isTrashPending = false;
 
+  late ConfettiController _confettiController;
+
 
  @override
   void initState() {
     super.initState();
-    _fetchUserScore(); // Ensure score is fetched first
+    _confettiController = ConfettiController(duration: Duration(seconds: 2));
+    _fetchUserScoreAndApprovals(); // Ensure score is fetched first
   }
 
   // Fetch the user score
-  Future<void> _fetchUserScore() async {
+  Future<void> _fetchUserScoreAndApprovals() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final userId = user.uid; // Get the user ID
-      final doc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-      if (doc.exists) {
-        setState(() {
-          _userScore = (doc.data()?['score'] ?? 0) as int;
-        });
+    if (user == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final firestore = FirebaseFirestore.instance;
+    final userDoc = await firestore.collection('users').doc(user.uid).get();
+    final missions = await fetchTodayMissions();
+    final todayStart = DateTime.now();
+    final startOfDay = DateTime(todayStart.year, todayStart.month, todayStart.day);
+
+    setState(() {
+      _userScore = (userDoc.data()?['score'] ?? 0) as int;
+    });
+
+    for (final entry in missions.entries) {
+      final category = entry.key;
+      final missionTitle = entry.value;
+
+      final approvedSnapshot = await firestore
+          .collection('missions')
+          .where('childId', isEqualTo: user.uid)
+          .where('missionTitle', isEqualTo: missionTitle)
+          .where('status', isEqualTo: 'approved')
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .limit(1)
+          .get();
+
+      final pendingSnapshot = await firestore
+          .collection('missions')
+          .where('childId', isEqualTo: user.uid)
+          .where('missionTitle', isEqualTo: missionTitle)
+          .where('status', isEqualTo: 'pending')
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .limit(1)
+          .get();
+
+      // Konfetti & popup bara om nytt godkännande
+      if (approvedSnapshot.docs.isNotEmpty) {
+        final docId = approvedSnapshot.docs.first.id;
+        if (prefs.getString('lastApproved_$category') != docId) {
+          _confettiController.play();
+          _showApprovedPopup(missionTitle);
+          await prefs.setString('lastApproved_$category', docId);
+        }
       }
 
-      // Fetch today’s missions
-      final todayMissions = await fetchTodayMissions();
+      setState(() {
+        if (category == 'battery') {
+          isBatteryApproved = approvedSnapshot.docs.isNotEmpty;
+          isBatteryPending = pendingSnapshot.docs.isNotEmpty;
+        } else if (category == 'pant') {
+          isPantApproved = approvedSnapshot.docs.isNotEmpty;
+          isPantPending = pendingSnapshot.docs.isNotEmpty;
+        } else if (category == 'trash') {
+          isTrashApproved = approvedSnapshot.docs.isNotEmpty;
+          isTrashPending = pendingSnapshot.docs.isNotEmpty;
+        }
+      });
+    }
+  }
 
-      // Check approval status for each mission (battery, pant, trash)
-      for (String missionTitle in todayMissions.keys) {
-        final missionApproved = await isMissionApproved(
-          todayMissions[missionTitle]!,
-          userId,
-        );
 
-        print('$missionTitle Approved: $missionApproved');
+  Future<void> _checkForNewApprovedMission(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final missionSnapshot = await FirebaseFirestore.instance
+        .collection('missions')
+        .where('childId', isEqualTo: userId)
+        .where('status', isEqualTo: 'approved')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
 
-        setState(() {
-          if (missionTitle == 'battery') {
-            isBatteryApproved = missionApproved;
-          } else if (missionTitle == 'pant') {
-            isPantApproved = missionApproved;
-          } else if (missionTitle == 'trash') {
-            isTrashApproved = missionApproved;
-          }
-        });
-      }
+    if (missionSnapshot.docs.isNotEmpty) {
+      final docId = missionSnapshot.docs.first.id;
 
-      // Check pending status for each mission (battery, pant, trash)
-      for (String missionTitle in todayMissions.keys) {
-        final missionPending = await isMissionPending(
-          todayMissions[missionTitle]!,
-          userId,
-        );
+      if (prefs.getString('lastApprovedMission') != docId) {
+        _confettiController.play();
 
-        print('$missionTitle Approved: $missionPending');
+        final missionTitle = missionSnapshot.docs.first.data()['missionTitle'];
+        _showApprovedPopup(missionTitle);
 
-        setState(() {
-          if (missionTitle == 'battery') {
-            isBatteryPending = missionPending;
-          } else if (missionTitle == 'pant') {
-            isPantPending = missionPending;
-          } else if (missionTitle == 'trash') {
-            isTrashPending = missionPending;
-          }
-        });
+        await prefs.setString('lastApprovedMission', docId);
       }
     }
   }
+
+  void _showApprovedPopup(String title) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.green.shade100,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Center(
+            child: Text('🎉 Grattis! 🎉', style: TextStyle(fontSize: 24, color: Colors.green.shade800)),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Uppdraget "$title" har blivit godkänt!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 20, color: Colors.green.shade700),
+              ),
+              SizedBox(height: 20),
+              Icon(Icons.check_circle, color: Colors.green.shade800, size: 60),
+            ],
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Okej!'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  String _getPlantImage() {
+    if (_userScore < 50) {
+      return 'assets/images/plant_stage_1.png';
+    } else if (_userScore < 100) {
+      return 'assets/images/plant_stage_2.png';
+    } else if (_userScore < 150) {
+      return 'assets/images/plant_stage_3.png';
+    } else {
+      return 'assets/images/plant_stage_4.png';
+    }
+  }
+
+  String _getPlantStageNameByScore(int score) {
+    if (score < 50) {
+      return 'Frö 🌱';
+    } else if (score < 100) {
+      return 'Grodd 🌿';
+    } else {
+      return 'Träd 🌳';
+    }
+  }
+
+  String _getPlantStageName() => _getPlantStageNameByScore(_userScore);
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -448,6 +553,25 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       backgroundColor: Color(0xFFDAD7CD), // Matching background color
       body: Stack(
         children: [
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirection: -3.14 / 2, // Spraya uppåt
+              emissionFrequency: 0.05,
+              numberOfParticles: 30,
+              maxBlastForce: 20,
+              minBlastForce: 10,
+              gravity: 0.3,
+              shouldLoop: false,
+              colors: [
+                Colors.green,
+                Colors.lightGreen,
+                Colors.yellow,
+                Colors.teal,
+              ],
+            ),
+          ),
           FutureBuilder<Map<String, String>>(
             future: fetchTodayMissions(),
             builder: (context, snapshot) {
@@ -504,17 +628,14 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                           ),
                         ),
                       ),
-                      Center(
-                        child: Text(
-                          'Dagens utmaningar:',
-                          style: TextStyle(
-                            fontSize: 35,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
-                          ),
+                      Text(
+                        'Dagens utmaningar:',
+                        style: TextStyle(
+                          fontSize: 35,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700,
                         ),
                       ),
-                      const SizedBox(height: 20),
 
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -522,95 +643,27 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () {
-                                if (isTrashApproved) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => MissionDoneScreen(
-                                            mission: missions['trash']!,
-                                          ),
-                                    ),
-                                  );
-                                } else if (isTrashPending){
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => MissionPendingScreen(
-                                            mission: missions['trash']!,
-                                          ),
-                                    ),
-                                  );
-                                }
-                                else{
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => TrashScreen(
-                                            mission: missions['trash']!,
-                                          ),
-                                    ),
-                                  );
-                                }
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => TrashScreen(
+                                          mission: missions['trash']!,
+                                        ),
+                                  ),
+                                );
                               },
-                              style: ButtonStyle(
-                                shape: WidgetStateProperty.all(const CircleBorder()),
-                                padding: WidgetStateProperty.all(const EdgeInsets.all(24)),
-                                backgroundColor: WidgetStateProperty.all(
-                                  isTrashApproved || isTrashPending ? Colors.grey : Colors.green,
-                                ),
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
                               ),
                               child: Icon(
-                                isTrashApproved ? Icons.check : isTrashPending ? Icons.hourglass_bottom : FontAwesomeIcons.trashCan, color: Colors.white, size: 40                             ),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                if (isPantApproved) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => MissionDoneScreen(
-                                            mission: missions['pant']!,
-                                          ),
-                                    ),
-                                  );
-                                } else if(isPantPending){
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => MissionPendingScreen(
-                                            mission: missions['pant']!,
-                                          ),
-                                    ),
-                                  );
-                                } else{
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => PantScreen(
-                                            mission: missions['pant']!,
-                                          ),
-                                    ),
-                                  );
-                                }
-                              },
-                              style: ButtonStyle(
-                                shape: WidgetStateProperty.all(const CircleBorder()),
-                                padding: WidgetStateProperty.all(const EdgeInsets.all(24)),
-                                backgroundColor: WidgetStateProperty.all(
-                                  isPantApproved || isPantPending ? Colors.grey : Colors.green,
-                                ),
-                              ),
-                              child: Icon(
-                                 isPantApproved ? Icons.check : isPantPending ? Icons.hourglass_bottom : Icons.recycling_outlined,
+                                isTrashApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .recycling, // Show checkmark if approved
                                 size: 40,
                                 color: Colors.white,
                               ),
@@ -620,48 +673,57 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () {
-                                if (isBatteryApproved) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => MissionDoneScreen(
-                                            mission: missions['battery']!,
-                                          ),
-                                    ),
-                                  );
-                                } else if(isBatteryPending){
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => MissionPendingScreen(
-                                            mission: missions['battery']!,
-                                          ),
-                                    ),
-                                  );
-                                } 
-                                else{
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => BatteryScreen(
-                                            mission: missions['battery']!,
-                                          ),
-                                    ),
-                                  );
-                                }
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => PantScreen(
+                                          mission: missions['pant']!,
+                                        ),
+                                  ),
+                                );
                               },
-                              style: ButtonStyle(
-                                shape: WidgetStateProperty.all(const CircleBorder()),
-                                padding: WidgetStateProperty.all(const EdgeInsets.all(24)),
-                                backgroundColor: WidgetStateProperty.all(
-                                  isBatteryApproved || isBatteryPending ? Colors.grey : Colors.green,
-                                ),
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
                               ),
                               child: Icon(
-                                 isBatteryApproved ? Icons.check : isBatteryPending ? Icons.hourglass_bottom : Icons.battery_charging_full,
+                                isPantApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .energy_savings_leaf_rounded, // Show checkmark if approved
+                                size: 40,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => BatteryScreen(
+                                          mission: missions['battery']!,
+                                        ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(),
+                                padding: EdgeInsets.all(24),
+                                backgroundColor:
+                                    Colors.green, // Pick your color
+                              ),
+                              child: Icon(
+                                isBatteryApproved
+                                    ? Icons.check
+                                    : Icons
+                                        .battery_charging_full, // Show checkmark if approved
                                 size: 40,
                                 color: Colors.white,
                               ),
@@ -669,6 +731,49 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                           ),
                         ],
                       ),
+
+                      /*  SizedBox(height: 40),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['battery']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['pant']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          _submitMissionWithPhoto(
+                            missions['battery']!,
+                            context,
+                          );
+                        },
+                        style: buttonStyle(),
+                        child: Text(
+                          missions['trash']!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),*/
                     ],
                   ),
                 );
@@ -678,22 +783,36 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
           // Growing plant image
           Positioned(
-            bottom: 70, // height above bottom nav bar
+            bottom: 70,
             left: 0,
             right: 0,
             child: Center(
-              child: AnimatedContainer(
-                duration: Duration(milliseconds: 500),
-                width: 200 + imageSize,
-                height: 200 + imageSize,
-                child: Image.asset('assets/images/plant.png'),
+              child: Column(
+                children: [
+                  AnimatedSwitcher(
+                    duration: Duration(milliseconds: 500),
+                    child: Image.asset(
+                      _getPlantImage(),
+                      key: ValueKey(_getPlantImage()),
+                      height: MediaQuery.of(context).size.height * 0.3,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    _getPlantStageNameByScore(_userScore),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
       ),
-
-      // The bottom navigation bar remains as is...
+      // Add the bottom navigation bar to the Scaffold
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.green.shade700,
         selectedItemColor: Colors.white,
