@@ -350,17 +350,18 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     super.didChangeDependencies();
     // Subscribe to the route observer when the screen becomes visible
     routeObserver.subscribe(this, ModalRoute.of(context) as PageRoute<dynamic>);
-    _fetchUserScore(); // Refresh mission status here
+    _fetchUserScoreAndApprovals(); // Refresh mission status here
   }
 
   @override
   void didPopNext() {
     // This method will be called when the user navigates back to this screen
-    _fetchUserScore(); // Refresh the mission status when coming back to the screen
+    _fetchUserScoreAndApprovals(); // Refresh the mission status when coming back to the screen
   }
 
   @override
   void dispose() {
+    _confettiController.dispose();
     // Unsubscribe from the route observer to avoid memory leaks
     routeObserver.unsubscribe(this);
     super.dispose();
@@ -386,12 +387,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     _fetchUserScoreAndApprovals(); // Ensure score is fetched first
   }
 
-  @override
-  void dispose() {
-    _confettiController.dispose();
-    super.dispose();
-  }
-
   // Fetch the user score
   Future<void> _fetchUserScoreAndApprovals() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -401,127 +396,58 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     final firestore = FirebaseFirestore.instance;
     final userDoc = await firestore.collection('users').doc(user.uid).get();
     final missions = await fetchTodayMissions();
-    final DateTime today = DateTime.now();
-    final DateTime startOfDay = DateTime(today.year, today.month, today.day);
+    final todayStart = DateTime.now();
+    final startOfDay = DateTime(todayStart.year, todayStart.month, todayStart.day);
 
-    final int score = (userDoc.data()?['score'] ?? 0) as int;
     setState(() {
-      _userScore = score;
+      _userScore = (userDoc.data()?['score'] ?? 0) as int;
     });
 
-    for (String key in missions.keys) {
-      final title = missions[key]!;
-      final query = await firestore
+    for (final entry in missions.entries) {
+      final category = entry.key;
+      final missionTitle = entry.value;
+
+      final approvedSnapshot = await firestore
           .collection('missions')
           .where('childId', isEqualTo: user.uid)
-          .where('missionTitle', isEqualTo: title)
+          .where('missionTitle', isEqualTo: missionTitle)
+          .where('status', isEqualTo: 'approved')
           .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-          .orderBy('timestamp', descending: true)
           .limit(1)
           .get();
 
-      if (query.docs.isNotEmpty) {
-        final docId = query.docs.first.id;
+      final pendingSnapshot = await firestore
+          .collection('missions')
+          .where('childId', isEqualTo: user.uid)
+          .where('missionTitle', isEqualTo: missionTitle)
+          .where('status', isEqualTo: 'pending')
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .limit(1)
+          .get();
 
-        await Future.delayed(Duration(milliseconds: 300));
-        _confettiController.play();
-        _showApprovedPopup(title);
-        
-        setState(() {
-          if (key == 'battery') isBatteryApproved = true;
-          if (key == 'pant') isPantApproved = true;
-          if (key == 'trash') isTrashApproved = true;
-        });
+      // Konfetti & popup bara om nytt godkännande
+      if (approvedSnapshot.docs.isNotEmpty) {
+        final docId = approvedSnapshot.docs.first.id;
+        if (prefs.getString('lastApproved_$category') != docId) {
+          _confettiController.play();
+          _showApprovedPopup(missionTitle);
+          await prefs.setString('lastApproved_$category', docId);
+        }
       }
 
-      // Fetch today’s missions
-      final todayMissions = await fetchTodayMissions();
-
-      // Check approval status for each mission (battery, pant, trash)
-      for (String missionTitle in todayMissions.keys) {
-        final missionApproved = await isMissionApproved(
-          todayMissions[missionTitle]!,
-          userId,
-        );
-
-        print('$missionTitle Approved: $missionApproved');
-
-        setState(() {
-          if (missionTitle == 'battery') {
-            isBatteryApproved = missionApproved;
-          } else if (missionTitle == 'pant') {
-            isPantApproved = missionApproved;
-          } else if (missionTitle == 'trash') {
-            isTrashApproved = missionApproved;
-          }
-        });
-      }
-
-      // Check pending status for each mission (battery, pant, trash)
-      for (String missionTitle in todayMissions.keys) {
-        final missionPending = await isMissionPending(
-          todayMissions[missionTitle]!,
-          userId,
-        );
-
-        print('$missionTitle Approved: $missionPending');
-
-        setState(() {
-          if (missionTitle == 'battery') {
-            isBatteryPending = missionPending;
-          } else if (missionTitle == 'pant') {
-            isPantPending = missionPending;
-          } else if (missionTitle == 'trash') {
-            isTrashPending = missionPending;
-          }
-        });
-      }
-
-      // Fetch today’s missions
-      final todayMissions = await fetchTodayMissions();
-
-      // Check approval status for each mission (battery, pant, trash)
-      for (String missionTitle in todayMissions.keys) {
-        final missionApproved = await isMissionApproved(
-          todayMissions[missionTitle]!,
-          userId,
-        );
-
-        print('$missionTitle Approved: $missionApproved');
-
-        setState(() {
-          if (missionTitle == 'battery') {
-            isBatteryApproved = missionApproved;
-          } else if (missionTitle == 'pant') {
-            isPantApproved = missionApproved;
-          } else if (missionTitle == 'trash') {
-            isTrashApproved = missionApproved;
-          }
-        });
-      }
-
-      // Check pending status for each mission (battery, pant, trash)
-      for (String missionTitle in todayMissions.keys) {
-        final missionPending = await isMissionPending(
-          todayMissions[missionTitle]!,
-          userId,
-        );
-
-        print('$missionTitle Approved: $missionPending');
-
-        setState(() {
-          if (missionTitle == 'battery') {
-            isBatteryPending = missionPending;
-          } else if (missionTitle == 'pant') {
-            isPantPending = missionPending;
-          } else if (missionTitle == 'trash') {
-            isTrashPending = missionPending;
-          }
-        });
-      }
+      setState(() {
+        if (category == 'battery') {
+          isBatteryApproved = approvedSnapshot.docs.isNotEmpty;
+          isBatteryPending = pendingSnapshot.docs.isNotEmpty;
+        } else if (category == 'pant') {
+          isPantApproved = approvedSnapshot.docs.isNotEmpty;
+          isPantPending = pendingSnapshot.docs.isNotEmpty;
+        } else if (category == 'trash') {
+          isTrashApproved = approvedSnapshot.docs.isNotEmpty;
+          isTrashPending = pendingSnapshot.docs.isNotEmpty;
+        }
+      });
     }
-
-    await _checkForNewApprovedMission(user.uid);
   }
 
 
