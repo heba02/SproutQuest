@@ -22,10 +22,35 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
     if (user != null) {
       final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       if (doc.exists && doc.data()!.containsKey('linkedChildren')) {
+        final rawChildren = List<Map<String, dynamic>>.from(doc['linkedChildren']);
+        final List<Map<String, dynamic>> enrichedChildren = [];
+
+        for (var child in rawChildren) {
+          final email = child['childEmail'];
+          final displayName = child['displayName'] ?? email;
+
+          final childQuery = await FirebaseFirestore.instance
+              .collection('users')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+
+          int score = 0;
+          if (childQuery.docs.isNotEmpty) {
+            score = childQuery.docs.first.data()['score'] ?? 0;
+          }
+
+          enrichedChildren.add({
+            'childEmail': email,
+            'displayName': displayName,
+            'score': score,
+          });
+        }
+
         setState(() {
-          linkedChildren = List<Map<String, dynamic>>.from(doc['linkedChildren']);
-          _controllers.clear(); // 🧹 Viktigt: Rensa gamla controllers
-          for (var child in linkedChildren) {
+          linkedChildren = enrichedChildren;
+          _controllers.clear();
+          for (var child in enrichedChildren) {
             _controllers[child['childEmail']] = TextEditingController(text: child['displayName']);
           }
         });
@@ -33,13 +58,11 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
     }
   }
 
-
   Future<void> updateChildName(String childEmail, String newName) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final userDocRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-      // 1. Uppdatera i databasen
       final updatedChildren = linkedChildren.map((child) {
         if (child['childEmail'] == childEmail) {
           return {
@@ -54,26 +77,22 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
         'linkedChildren': updatedChildren,
       });
 
-      // 2. Ladda om hela listan och skapa nya TextEditingControllers
       await fetchLinkedChildren();
 
-      // 3. Visa en liten SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Barnets namn uppdaterat!')),
       );
     }
   }
 
-
   @override
   void dispose() {
     for (var controller in _controllers.values) {
       controller.dispose();
     }
-    _controllers.clear(); // 🧹 Rensa minnet!
+    _controllers.clear();
     super.dispose();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +119,17 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
                           labelText: 'Barnets namn',
                         ),
                       ),
-                      subtitle: Text(child['childEmail']),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(child['childEmail']),
+                          SizedBox(height: 4),
+                          Text(
+                            'Poäng: ${child['score']}',
+                            style: TextStyle(color: Colors.green.shade700),
+                          ),
+                        ],
+                      ),
                       trailing: ElevatedButton(
                         onPressed: () {
                           final newName = _controllers[child['childEmail']]?.text.trim() ?? '';
@@ -121,4 +150,4 @@ class _ManageLinkedChildrenScreenState extends State<ManageLinkedChildrenScreen>
       ),
     );
   }
-} 
+}

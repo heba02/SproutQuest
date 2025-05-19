@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'pending_missions_screen.dart';
 import 'adult_settings_screen.dart';
+import 'manage_linked_children_screen.dart';
 
 class AdultMainScreen extends StatefulWidget {
   const AdultMainScreen({super.key});
@@ -14,6 +15,7 @@ class _AdultMainScreenState extends State<AdultMainScreen> {
 
   final List<Widget> _screens = [
     PendingMissionsScreen(),
+    ManageLinkedChildrenScreen(),
     AdultSettingsScreen(),
   ];
 
@@ -36,10 +38,14 @@ class _AdultMainScreenState extends State<AdultMainScreen> {
           fontWeight: FontWeight.normal,
           fontSize: 12,
         ),
-        items: [
+        items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.assignment),
-            label: 'Väntande uppdrag',
+            label: 'Uppdrag',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.family_restroom),
+            label: 'Barn',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
